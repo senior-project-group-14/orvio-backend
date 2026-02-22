@@ -32,6 +32,12 @@ async function createAdmin(req, res, next) {
     
     res.status(201).json(admin);
   } catch (error) {
+    if (error.message && error.message.includes('Invalid role_id')) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid role_id',
+      });
+    }
     if (error.code === 'P2002') {
       return res.status(409).json({
         error: 'Conflict',
@@ -47,6 +53,31 @@ async function updateAdmin(req, res, next) {
     const { admin_id } = req.params;
     const admin = await sysadminService.updateAdmin(admin_id, req.body);
     res.json(admin);
+  } catch (error) {
+    if (error.message && error.message.includes('Invalid role_id')) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid role_id',
+      });
+    }
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Admin not found',
+      });
+    }
+    next(error);
+  }
+}
+
+async function deleteAdmin(req, res, next) {
+  try {
+    const { admin_id } = req.params;
+    const admin = await sysadminService.deleteAdmin(admin_id);
+    res.json({
+      message: 'Admin deleted',
+      user_id: admin.user_id,
+    });
   } catch (error) {
     if (error.code === 'P2025') {
       return res.status(404).json({
@@ -64,6 +95,12 @@ async function createDevice(req, res, next) {
     const device = await sysadminService.createDevice(req.body);
     res.status(201).json(device);
   } catch (error) {
+    if (error.message && error.message.includes('Invalid status_id')) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid status_id',
+      });
+    }
     next(error);
   }
 }
@@ -74,6 +111,12 @@ async function updateDevice(req, res, next) {
     const device = await sysadminService.updateDevice(device_id, req.body);
     res.json(device);
   } catch (error) {
+    if (error.message && error.message.includes('Invalid status_id')) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid status_id',
+      });
+    }
     if (error.code === 'P2025') {
       return res.status(404).json({
         error: 'Not Found',
@@ -254,6 +297,7 @@ module.exports = {
   getAllAdmins,
   createAdmin,
   updateAdmin,
+  deleteAdmin,
   createDevice,
   updateDevice,
   getAllAssignments,

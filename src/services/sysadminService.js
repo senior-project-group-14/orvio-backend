@@ -1,7 +1,17 @@
 const prisma = require('../config/database');
 const { hashPassword } = require('../utils/bcrypt');
 const { v4: uuidv4 } = require('uuid');
-const { USER_ROLE } = require('../config/constants');
+const { USER_ROLE, DEVICE_STATUS } = require('../config/constants');
+
+function assertValidLookupId(value, lookup, fieldName) {
+  const allowedIds = Object.values(lookup);
+
+  if (!Number.isInteger(value) || !allowedIds.includes(value)) {
+    throw new Error(`Invalid ${fieldName}`);
+  }
+
+  return value;
+}
 
 async function getAllAdmins() {
   return prisma.user.findMany({
@@ -14,6 +24,10 @@ async function getAllAdmins() {
 
 async function createAdmin(adminData) {
   const passwordHash = await hashPassword(adminData.password);
+  const roleId =
+    adminData.role_id !== undefined
+      ? assertValidLookupId(adminData.role_id, USER_ROLE, 'role_id')
+      : USER_ROLE.ADMIN;
   
   return prisma.user.create({
     data: {
@@ -22,7 +36,7 @@ async function createAdmin(adminData) {
       last_name: adminData.last_name,
       email: adminData.email,
       password_hash: passwordHash,
-      role_id: adminData.role_id || USER_ROLE.ADMIN,
+      role_id: roleId,
       active: true,
       created_at: new Date(),
       updated_at: new Date(),
@@ -38,7 +52,9 @@ async function updateAdmin(adminId, adminData) {
   if (adminData.first_name !== undefined) updateData.first_name = adminData.first_name;
   if (adminData.last_name !== undefined) updateData.last_name = adminData.last_name;
   if (adminData.email !== undefined) updateData.email = adminData.email;
-  if (adminData.role_id !== undefined) updateData.role_id = adminData.role_id;
+  if (adminData.role_id !== undefined) {
+    updateData.role_id = assertValidLookupId(adminData.role_id, USER_ROLE, 'role_id');
+  }
   if (adminData.active !== undefined) updateData.active = adminData.active;
   
   if (adminData.password) {
@@ -51,8 +67,35 @@ async function updateAdmin(adminId, adminData) {
   });
 }
 
+async function deleteAdmin(adminId) {
+  return prisma.$transaction(async (tx) => {
+    await tx.deviceAssignment.deleteMany({
+      where: { admin_user_id: adminId },
+    });
+
+    await tx.cooler.updateMany({
+      where: { assigned_admin_id: adminId },
+      data: { assigned_admin_id: null },
+    });
+
+    await tx.transaction.updateMany({
+      where: { user_id: adminId },
+      data: { user_id: null },
+    });
+
+    return tx.user.delete({
+      where: { user_id: adminId },
+    });
+  });
+}
+
 
 async function createDevice(deviceData) {
+  const statusId =
+    deviceData.status_id !== undefined
+      ? assertValidLookupId(deviceData.status_id, DEVICE_STATUS, 'status_id')
+      : DEVICE_STATUS.ACTIVE;
+
   return prisma.cooler.create({
     data: {
       device_id: uuidv4(),
@@ -61,7 +104,7 @@ async function createDevice(deviceData) {
       gps_latitude: deviceData.gps_latitude,
       gps_longitude: deviceData.gps_longitude,
       default_temperature: deviceData.default_temperature,
-      status: deviceData.status || 'ACTIVE',
+      status_id: statusId,
       last_checkin_time: new Date(),
       assigned_admin_id: deviceData.assigned_admin_id,
       door_status: false,
@@ -79,7 +122,9 @@ async function updateDevice(deviceId, deviceData) {
   if (deviceData.gps_latitude !== undefined) updateData.gps_latitude = deviceData.gps_latitude;
   if (deviceData.gps_longitude !== undefined) updateData.gps_longitude = deviceData.gps_longitude;
   if (deviceData.default_temperature !== undefined) updateData.default_temperature = deviceData.default_temperature;
-  if (deviceData.status_id !== undefined) updateData.status_id = deviceData.status_id;
+  if (deviceData.status_id !== undefined) {
+    updateData.status_id = assertValidLookupId(deviceData.status_id, DEVICE_STATUS, 'status_id');
+  }
   if (deviceData.assigned_admin_id !== undefined) updateData.assigned_admin_id = deviceData.assigned_admin_id;
   if (deviceData.shelf_count !== undefined) updateData.shelf_count = deviceData.shelf_count;
   if (deviceData.session_limit !== undefined) updateData.session_limit = deviceData.session_limit;
@@ -253,6 +298,7 @@ module.exports = {
   getAllAdmins,
   createAdmin,
   updateAdmin,
+  deleteAdmin,
   createDevice,
   updateDevice,
   getAllAssignments,

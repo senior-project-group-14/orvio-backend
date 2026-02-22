@@ -1,6 +1,7 @@
 const adminService = require('../services/adminService');
 const authService = require('../services/authService');
 const { hashPassword } = require('../utils/bcrypt');
+const { USER_ROLE } = require('../config/constants');
 
 async function login(req, res, next) {
   try {

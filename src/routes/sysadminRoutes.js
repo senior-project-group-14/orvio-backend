@@ -143,6 +143,9 @@ router.post('/admins', sysadminController.createAdmin);
 // PATCH /sysadmin/admins/:admin_id
 router.patch('/admins/:admin_id', sysadminController.updateAdmin);
 
+// DELETE /sysadmin/admins/:admin_id
+router.delete('/admins/:admin_id', sysadminController.deleteAdmin);
+
 
 
 /**
