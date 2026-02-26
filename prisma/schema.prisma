@@ -20,15 +20,16 @@ model ActionTypeLookup {
 }
 // Extracted model fragment; Prisma CLI still needs a merged schema.
 model Alert {
-  alert_id   String   @id @default(uuid())
-  device_id  String
-  timestamp  DateTime
-  alert_type String
-  message    String   @db.VarChar(500)
-  status_id  Int
+  alert_id        String             @id @default(uuid())
+  device_id       String
+  timestamp       DateTime           @default(now()) // Varsayılan değer eklemek iyidir
+  alert_type      String
+  message         String             @db.VarChar(500)
+  status_id       Int
+  resolution_note String?            @db.Text 
 
-  device Cooler           @relation(fields: [device_id], references: [device_id])
-  status AlertStatusLookup @relation(fields: [status_id], references: [id])
+  device          Cooler             @relation(fields: [device_id], references: [device_id])
+  status          AlertStatusLookup  @relation(fields: [status_id], references: [id])
 
   @@index([device_id])
   @@index([status_id])
