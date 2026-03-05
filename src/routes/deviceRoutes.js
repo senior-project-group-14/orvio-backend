@@ -4,9 +4,6 @@ const deviceController = require('../controllers/deviceController');
 const adminAuth = require('../middleware/adminAuth');
 const deviceAccess = require('../middleware/deviceAccess');
 
-// All routes require admin authentication
-router.use(adminAuth);
-
 /**
  * @swagger
  * /devices:
@@ -27,7 +24,7 @@ router.use(adminAuth);
  *                   status: "ONLINE"
  *                   location_description: "Test Store"
  */
-router.get('/', deviceController.getDevices);
+router.get('/', adminAuth, deviceController.getDevices);
 
 /**
  * @swagger
@@ -57,7 +54,7 @@ router.get('/', deviceController.getDevices);
  *                   current_stock: 10
  *                   critic_stock: 2
  */
-router.get('/:device_id/inventory', deviceAccess, deviceController.getDeviceInventory);
+router.get('/:device_id/inventory', adminAuth, deviceAccess, deviceController.getDeviceInventory);
 
 /**
  * @swagger
@@ -86,7 +83,7 @@ router.get('/:device_id/inventory', deviceAccess, deviceController.getDeviceInve
  *                   status: "COMPLETED"
  *                   is_active: false
  */
-router.get('/:device_id/transactions', deviceAccess, deviceController.getDeviceTransactions);
+router.get('/:device_id/transactions', adminAuth, deviceAccess, deviceController.getDeviceTransactions);
 
 /**
  * @swagger
@@ -116,7 +113,7 @@ router.get('/:device_id/transactions', deviceAccess, deviceController.getDeviceT
  *                   humidity: 60
  *                   door_status: false
  */
-router.get('/:device_id/telemetry', deviceAccess, deviceController.getDeviceTelemetry);
+router.get('/:device_id/telemetry', adminAuth, deviceAccess, deviceController.getDeviceTelemetry);
 
 /**
  * @swagger
@@ -145,6 +142,6 @@ router.get('/:device_id/telemetry', deviceAccess, deviceController.getDeviceTele
  *                   type: "temperature_high"
  *                   status: "OPEN"
  */
-router.get('/:device_id/alerts', deviceAccess, deviceController.getDeviceAlerts);
+router.get('/:device_id/alerts', adminAuth, deviceAccess, deviceController.getDeviceAlerts);
 
 module.exports = router;

@@ -215,7 +215,7 @@ async function getCart(transactionId) {
   };
 }
 
-async function endSession(deviceId, transactionId, endedAt) {
+async function endSession(deviceId, transactionId, endedAt, cancelled = false) {
   const transaction = await prisma.transaction.findUnique({
     where: { transaction_id: transactionId },
   });
@@ -233,12 +233,16 @@ async function endSession(deviceId, transactionId, endedAt) {
   }
   
   // Update transaction
+  const nextStatusId = cancelled
+    ? CONSTANTS.TRANSACTION_STATUS.CANCELLED
+    : CONSTANTS.TRANSACTION_STATUS.AWAITING_USER_CONFIRMATION;
+
   const updated = await prisma.transaction.update({
     where: { transaction_id: transactionId },
     data: {
       end_time: new Date(endedAt),
       is_active: false,
-      status_id: CONSTANTS.TRANSACTION_STATUS.AWAITING_USER_CONFIRMATION,
+      status_id: nextStatusId,
     },
   });
   
@@ -269,6 +273,7 @@ async function getCurrentSession(deviceId, sessionInitToken) {
     has_active_session: !!transaction,
     transaction_id: transaction?.transaction_id || null,
     status: transaction?.status || null,
+    started_at: transaction?.start_time || null,
   };
 }
 

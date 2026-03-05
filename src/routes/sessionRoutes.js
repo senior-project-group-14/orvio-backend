@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const sessionController = require('../controllers/sessionController');
 const deviceAuth = require('../middleware/deviceAuth');
+const deviceValidation = require('../middleware/deviceValidation');
 const { idempotencyMiddleware } = require('../middleware/idempotency');
 
 
@@ -11,8 +12,7 @@ const { idempotencyMiddleware } = require('../middleware/idempotency');
  *   post:
  *     summary: Start a new session
  *     tags: [Sessions]
- *     security:
- *       - DeviceToken: []
+ *     security: []
  *     parameters:
  *       - in: path
  *         name: device_id
@@ -36,7 +36,7 @@ const { idempotencyMiddleware } = require('../middleware/idempotency');
  *               device_id: "dev789"
  *               status: "active"
  */
-router.post('/devices/:device_id/sessions/start', deviceAuth, sessionController.startSession);
+router.post('/devices/:device_id/sessions/start', deviceValidation, sessionController.startSession);
 
 
 /**
@@ -147,8 +147,7 @@ router.get('/devices/:device_id/sessions/current', sessionController.getCurrentS
  *   post:
  *     summary: End a session
  *     tags: [Sessions]
- *     security:
- *       - DeviceToken: []
+ *     security: []
  *     parameters:
  *       - in: path
  *         name: device_id
@@ -177,7 +176,7 @@ router.get('/devices/:device_id/sessions/current', sessionController.getCurrentS
  *               success: true
  *               message: "Session ended."
  */
-router.post('/devices/:device_id/sessions/:transaction_id/end', deviceAuth, sessionController.endSession);
+router.post('/devices/:device_id/sessions/:transaction_id/end', deviceValidation, sessionController.endSession);
 
 module.exports = router;
 

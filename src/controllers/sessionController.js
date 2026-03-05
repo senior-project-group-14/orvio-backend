@@ -95,7 +95,7 @@ async function getCart(req, res, next) {
 async function endSession(req, res, next) {
   try {
     const { device_id, transaction_id } = req.params;
-    const { ended_at } = req.body;
+    const { ended_at, cancelled } = req.body;
     
     if (!ended_at) {
       return res.status(400).json({
@@ -104,7 +104,7 @@ async function endSession(req, res, next) {
       });
     }
     
-    const result = await sessionService.endSession(device_id, transaction_id, ended_at);
+    const result = await sessionService.endSession(device_id, transaction_id, ended_at, cancelled === true);
     res.json(result);
   } catch (error) {
     if (error.message === 'Transaction not found' || 

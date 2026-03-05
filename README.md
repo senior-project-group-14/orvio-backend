@@ -19,3 +19,7 @@ npm run dev
 - orvio-ai-model
 - orvio-device  
 
+
+http://localhost:3000/qr/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
+
+http://your_IPv4/cooler/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a

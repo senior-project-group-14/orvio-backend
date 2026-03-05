@@ -32,21 +32,23 @@ const sysadminRoutes = require('./routes/sysadminRoutes');
 const telemetryRoutes = require('./routes/telemetryRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
 const brandRoutes = require('./routes/brandRoutes');
 const productRoutes = require('./routes/productRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const disputeRoutes = require('./routes/disputeRoutes');
+const qrRoutes = require('./routes/qr');
 
 const app = express();
 
 // Middleware
 app.use(
   cors({
-    origin: '*', // Allow all origins (for development)
+    origin: '*', // Tüm cihazlardan erişime açılıyor (geliştirme için)
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-Token', 'Accept'],
-    credentials: false, // Must be false when origin is '*'
+    credentials: false, // origin '*' ise false olmalı
   })
 );
 // Handle preflight requests
@@ -80,11 +82,13 @@ app.use('/', sysadminRoutes);
 app.use('/', telemetryRoutes);
 app.use('/admin', adminRoutes);
 app.use('/', transactionRoutes);
+app.use('/', sessionRoutes);
 app.use('/devices', deviceRoutes);
 app.use('/brands', brandRoutes);
 app.use('/products', productRoutes);
 app.use('/alerts', alertRoutes);
 app.use('/disputes', disputeRoutes);
+app.use('/qr', qrRoutes);
 
 // Error handler (must be last)
 //app.use(errorHandler);
