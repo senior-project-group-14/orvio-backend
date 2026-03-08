@@ -69,6 +69,7 @@ model Cooler {
   assignedAdmin User?              @relation("CoolerAdmin", fields: [assigned_admin_id], references: [user_id])
 
   inventories       Inventory[]
+  coolerProducts    CoolerProduct[]
   transactions      Transaction[]
   telemetries       Telemetry[]
   alerts            Alert[]
@@ -129,10 +130,23 @@ model Product {
 
   brand            Brand            @relation(fields: [brand_id], references: [brand_id])
   inventories      Inventory[]
+  coolerProducts   CoolerProduct[]
   transactionItems TransactionItem[]
   productBrands    ProductBrand[]
 
   @@index([brand_id])
+}
+// Extracted model fragment; Prisma CLI still needs a merged schema.
+model CoolerProduct {
+  device_id    String
+  product_id   String
+  is_active    Boolean  @default(true)
+
+  device  Cooler  @relation(fields: [device_id], references: [device_id])
+  product Product @relation(fields: [product_id], references: [product_id])
+
+  @@id([device_id, product_id])
+  @@index([product_id])
 }
 // Extracted model fragment; Prisma CLI still needs a merged schema.
 model ProductBrand {

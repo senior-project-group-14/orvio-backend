@@ -1,0 +1,12 @@
+// Extracted model fragment; Prisma CLI still needs a merged schema.
+model CoolerProduct {
+  device_id  String
+  product_id String
+  is_active  Boolean @default(true)
+
+  device  Cooler  @relation(fields: [device_id], references: [device_id])
+  product Product @relation(fields: [product_id], references: [product_id])
+
+  @@id([device_id, product_id])
+  @@index([product_id])
+}

@@ -27,5 +27,8 @@ router.use(adminAuth);
  *                   unit_price: 50.0
  */
 router.get('/', productController.getProducts);
+router.post('/', productController.createProduct);
+router.put('/:product_id', productController.updateProduct);
+router.delete('/:product_id', productController.deleteProduct);
 
 module.exports = router;
