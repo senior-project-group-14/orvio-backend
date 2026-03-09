@@ -16,7 +16,7 @@ async function deviceAccessMiddleware(req, res, next) {
     }
 
     // 3️⃣ device_id kontrolü
-    const deviceId = req.params.device_id || req.body.device_id;
+    const deviceId = req.params.device_id || req.params.cooler_id || req.params.id || req.body.device_id || req.body.cooler_id || req.body.id;
 
     if (!deviceId) {
       return res.status(400).json({

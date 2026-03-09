@@ -1,0 +1,2 @@
+-- Intentionally left blank.
+-- This migration folder is retained to preserve migration history order.
