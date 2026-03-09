@@ -13,6 +13,11 @@ Node.js + Express backend for the Orvio Project. Handles session events, invento
 npm install
 npm run dev
 
+Optional environment variables for QR targets:
+- `HOST` (default: `0.0.0.0`)
+- `QR_FRONTEND_BASE_URL` (example: `http://yourIP:5174`)
+- `QR_FRONTEND_PORT` (default: `5174`, ignored if `QR_FRONTEND_BASE_URL` is set)
+
 
 ## Related Repos
 - orvio-frontend
@@ -20,6 +25,8 @@ npm run dev
 - orvio-device  
 
 
+## http://yourIP:3000/qr/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
+
 http://localhost:3000/qr/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
 
-http://your_IPv4/cooler/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
+http://yourIP:5174/cooler/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
