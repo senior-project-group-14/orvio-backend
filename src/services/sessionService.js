@@ -1,6 +1,50 @@
 const prisma = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const CONSTANTS = require('../config/constants');
+const sessionCartCacheService = require('./sessionCartCacheService');
+
+function toMoney(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Number(numeric.toFixed(2));
+}
+
+function normalizeItemsFromTransactionItems(items) {
+  const itemMap = new Map();
+
+  for (const item of items) {
+    const productId = item.product_id;
+    const current = itemMap.get(productId) || {
+      product_id: productId,
+      name: item.product?.name || 'Unknown Product',
+      brand: item.product?.brand?.brand_name || null,
+      quantity: 0,
+      unit_price: toMoney(item.unit_price_at_sale),
+      subtotal: 0,
+      metadata: {},
+    };
+
+    current.quantity += item.quantity;
+    current.subtotal = toMoney(current.quantity * current.unit_price);
+    itemMap.set(productId, current);
+  }
+
+  return Array.from(itemMap.values());
+}
+
+async function getTransactionOrThrow(transactionId) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { transaction_id: transactionId },
+  });
+
+  if (!transaction) {
+    throw new Error('Transaction not found');
+  }
+
+  return transaction;
+}
 
 async function startSession(deviceId, startedAt, sessionInitToken, transactionType) {
   // Check for existing active session
@@ -42,6 +86,12 @@ async function startSession(deviceId, startedAt, sessionInitToken, transactionTy
     where: { device_id: deviceId },
     data: { door_status: true },
   });
+
+  sessionCartCacheService.initSessionCart({
+    transaction_id: transaction.transaction_id,
+    device_id: transaction.device_id,
+    status_id: transaction.status_id,
+  });
   
   return {
     transaction_id: transaction.transaction_id,
@@ -71,9 +121,8 @@ async function addInteraction(deviceId, transactionId, events) {
     throw new Error('Transaction not active');
   }
   
-  // Process each event (with idempotency check) - use transaction for atomicity
-  const result = await prisma.$transaction(async (tx) => {
-    const processedEvents = [];
+  const processedEvents = await prisma.$transaction(async (tx) => {
+    const acceptedEvents = [];
     
     for (const event of events) {
       // Check if event_id already exists using SystemLog
@@ -91,55 +140,13 @@ async function addInteraction(deviceId, transactionId, events) {
       
       const product = await tx.product.findUnique({
         where: { product_id: event.product_id },
+        include: {
+          brand: true,
+        },
       });
       
       if (!product) {
         continue; // Skip invalid products
-      }
-      
-      // Calculate quantity change
-      const quantityChange = event.action_type_id === CONSTANTS.ACTION_TYPE.ADD 
-        ? event.quantity 
-        : -event.quantity;
-      
-      // Get current quantity for this product in transaction
-      const currentItem = await tx.transactionItem.findFirst({
-        where: {
-          transaction_id: transactionId,
-          product_id: event.product_id,
-        },
-        orderBy: { timestamp: 'desc' },
-      });
-      
-      const currentQuantity = currentItem ? currentItem.quantity : 0;
-      const newQuantity = Math.max(0, currentQuantity + quantityChange);
-      
-      // Create or update transaction item
-      if (currentItem && newQuantity > 0) {
-        await tx.transactionItem.update({
-          where: { transaction_item_id: currentItem.transaction_item_id },
-          data: {
-            quantity: newQuantity,
-            timestamp: new Date(event.timestamp),
-          },
-        });
-      } else if (newQuantity > 0) {
-        await tx.transactionItem.create({
-          data: {
-            transaction_item_id: uuidv4(),
-            transaction_id: transactionId,
-            product_id: event.product_id,
-            quantity: newQuantity,
-            action_type_id: event.action_type_id,
-            timestamp: new Date(event.timestamp),
-            unit_price_at_sale: product.unit_price,
-          },
-        });
-      } else if (currentItem && newQuantity === 0) {
-        // Remove item if quantity becomes 0
-        await tx.transactionItem.delete({
-          where: { transaction_item_id: currentItem.transaction_item_id },
-        });
       }
       
       // Mark event as processed in SystemLog (within transaction)
@@ -154,13 +161,32 @@ async function addInteraction(deviceId, transactionId, events) {
         },
       });
       
-      processedEvents.push(event);
+      const eventQuantity = Math.max(1, Number(event.quantity || 1));
+      const quantityDelta = event.action_type_id === CONSTANTS.ACTION_TYPE.ADD
+        ? eventQuantity
+        : -eventQuantity;
+
+      acceptedEvents.push({
+        event_id: event.event_id,
+        product_id: event.product_id,
+        quantity_delta: quantityDelta,
+        timestamp: event.timestamp,
+        name: product.name,
+        brand: product.brand?.brand_name || null,
+        unit_price: toMoney(product.unit_price),
+      });
     }
     
-    return processedEvents;
+    return acceptedEvents;
   });
-  
-  // Return current cart
+
+  sessionCartCacheService.applyInteractionEvents({
+    transaction_id: transaction.transaction_id,
+    device_id: transaction.device_id,
+    status_id: transaction.status_id,
+    events: processedEvents,
+  });
+
   return getCart(transactionId);
 }
 
@@ -177,40 +203,29 @@ async function getCart(transactionId) {
           },
         },
       },
+      status: true,
     },
   });
-  
+
   if (!transaction) {
     throw new Error('Transaction not found');
   }
-  
-  // Aggregate items by product
-  const itemMap = new Map();
-  
-  for (const item of transaction.items) {
-    const productId = item.product_id;
-    if (itemMap.has(productId)) {
-      const existing = itemMap.get(productId);
-      existing.quantity += item.quantity;
-      existing.subtotal = existing.quantity * parseFloat(existing.unit_price);
-    } else {
-      itemMap.set(productId, {
-        product_id: item.product_id,
-        name: item.product.name,
-        quantity: item.quantity,
-        unit_price: parseFloat(item.unit_price_at_sale),
-        subtotal: item.quantity * parseFloat(item.unit_price_at_sale),
-      });
-    }
+
+  let cached = sessionCartCacheService.getSessionCart(transactionId);
+
+  if (!cached) {
+    const fallbackItems = normalizeItemsFromTransactionItems(transaction.items || []);
+    cached = sessionCartCacheService.replaceSessionCart({
+      transaction_id: transaction.transaction_id,
+      device_id: transaction.device_id,
+      status_id: transaction.status_id,
+      items: fallbackItems,
+      source: 'DB_FALLBACK',
+    });
   }
-  
-  const cart = Array.from(itemMap.values());
-  const totalPrice = cart.reduce((sum, item) => sum + item.subtotal, 0);
-  
+
   return {
-    transaction_id: transaction.transaction_id,
-    cart,
-    total_price: totalPrice,
+    ...cached,
     status: transaction.status,
   };
 }
@@ -251,12 +266,79 @@ async function endSession(deviceId, transactionId, endedAt, cancelled = false) {
     where: { device_id: deviceId },
     data: { door_status: false },
   });
+
+  if (cancelled) {
+    sessionCartCacheService.clearSessionCart(transactionId);
+  }
   
   return {
     transaction_id: updated.transaction_id,
     status: updated.status,
     end_time: updated.end_time,
   };
+}
+
+async function updateCartSnapshot(transactionId, items, source = 'AI_MODEL', detectedAt = null) {
+  const transaction = await getTransactionOrThrow(transactionId);
+
+  if (transaction.status_id !== CONSTANTS.TRANSACTION_STATUS.ACTIVE &&
+      transaction.status_id !== CONSTANTS.TRANSACTION_STATUS.AWAITING_USER_CONFIRMATION) {
+    throw new Error('Transaction not active');
+  }
+
+  const productIds = [...new Set((items || []).map((item) => item.product_id).filter(Boolean))];
+  const products = await prisma.product.findMany({
+    where: {
+      product_id: { in: productIds },
+    },
+    include: {
+      brand: true,
+    },
+  });
+
+  const productsById = new Map(products.map((product) => [product.product_id, product]));
+  const normalized = [];
+
+  for (const item of items || []) {
+    if (!item.product_id) {
+      continue;
+    }
+
+    const product = productsById.get(item.product_id);
+    if (!product) {
+      continue;
+    }
+
+    const quantity = Math.max(0, Number(item.quantity || 0));
+    if (quantity <= 0) {
+      continue;
+    }
+
+    const unitPrice = toMoney(item.unit_price ?? product.unit_price);
+
+    normalized.push({
+      product_id: item.product_id,
+      name: product.name,
+      brand: product.brand?.brand_name || null,
+      quantity,
+      unit_price: unitPrice,
+      subtotal: toMoney(quantity * unitPrice),
+      metadata: {
+        source,
+        detected_at: detectedAt,
+      },
+    });
+  }
+
+  sessionCartCacheService.replaceSessionCart({
+    transaction_id: transaction.transaction_id,
+    device_id: transaction.device_id,
+    status_id: transaction.status_id,
+    items: normalized,
+    source,
+  });
+
+  return getCart(transactionId);
 }
 
 async function getCurrentSession(deviceId, sessionInitToken) {
@@ -283,5 +365,6 @@ module.exports = {
   getCart,
   endSession,
   getCurrentSession,
+  updateCartSnapshot,
 };
 

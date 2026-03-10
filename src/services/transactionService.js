@@ -1,6 +1,15 @@
 const prisma = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const CONSTANTS = require('../config/constants');
+const sessionCartCacheService = require('./sessionCartCacheService');
+
+function toMoney(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Number(numeric.toFixed(2));
+}
 
 async function getTransactionSummary(transactionId) {
   const transaction = await prisma.transaction.findUnique({
@@ -25,6 +34,27 @@ async function getTransactionSummary(transactionId) {
   
   if (transaction.status_id !== CONSTANTS.TRANSACTION_STATUS.AWAITING_USER_CONFIRMATION) {
     throw new Error('Transaction not awaiting confirmation');
+  }
+
+  const cachedCart = sessionCartCacheService.getSessionCart(transactionId);
+  if (cachedCart) {
+    return {
+      transaction_id: transaction.transaction_id,
+      device_id: transaction.device_id,
+      device_name: transaction.device.name,
+      status_id: transaction.status_id,
+      start_time: transaction.start_time,
+      end_time: transaction.end_time,
+      items: cachedCart.cart.map((item) => ({
+        product_id: item.product_id,
+        name: item.name,
+        brand: item.brand,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal,
+      })),
+      total_price: cachedCart.total_price,
+    };
   }
   
   // Aggregate items
@@ -67,13 +97,6 @@ async function confirmTransaction(transactionId, confirmedAt) {
   // Idempotency check
   const transaction = await prisma.transaction.findUnique({
     where: { transaction_id: transactionId },
-    include: {
-      items: {
-        include: {
-          product: true,
-        },
-      },
-    },
   });
   
   if (!transaction) {
@@ -93,6 +116,13 @@ async function confirmTransaction(transactionId, confirmedAt) {
   if (transaction.status_id !== CONSTANTS.TRANSACTION_STATUS.AWAITING_USER_CONFIRMATION) {
     throw new Error('Transaction not awaiting confirmation');
   }
+
+  const cartSnapshot = sessionCartCacheService.consumeSessionCart(transactionId);
+  if (!cartSnapshot) {
+    throw new Error('Session cart not found');
+  }
+
+  const cartItems = cartSnapshot.cart.filter((item) => Number(item.quantity) > 0);
   
   // Use transaction to ensure atomicity
   const result = await prisma.$transaction(async (tx) => {
@@ -104,10 +134,33 @@ async function confirmTransaction(transactionId, confirmedAt) {
       },
     });
     
+    await tx.transactionItem.deleteMany({
+      where: { transaction_id: transactionId },
+    });
+
     // Update inventory for each item
     let alertsCreated = 0;
     
-    for (const item of transaction.items) {
+    for (const item of cartItems) {
+      const quantity = Math.max(0, Number(item.quantity || 0));
+      if (quantity <= 0) {
+        continue;
+      }
+
+      const unitPrice = toMoney(item.unit_price);
+
+      await tx.transactionItem.create({
+        data: {
+          transaction_item_id: uuidv4(),
+          transaction_id: transactionId,
+          product_id: item.product_id,
+          quantity,
+          action_type_id: CONSTANTS.ACTION_TYPE.ADD,
+          timestamp: confirmedAt || new Date(),
+          unit_price_at_sale: unitPrice,
+        },
+      });
+
       // Get current inventory
       const inventory = await tx.inventory.findUnique({
         where: {
@@ -119,7 +172,7 @@ async function confirmTransaction(transactionId, confirmedAt) {
       });
       
       if (inventory) {
-        const newStock = inventory.current_stock - item.quantity;
+        const newStock = inventory.current_stock - quantity;
         
         await tx.inventory.update({
           where: {
@@ -142,7 +195,7 @@ async function confirmTransaction(transactionId, confirmedAt) {
               device_id: transaction.device_id,
               timestamp: new Date(),
               alert_type: 'LOW_STOCK',
-              message: `Product ${item.product.name} is below critical stock level`,
+              message: `Product ${item.name || item.product_id} is below critical stock level`,
               status: CONSTANTS.ALERT_STATUS.OPEN,
             },
           });

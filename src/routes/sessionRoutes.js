@@ -113,6 +113,35 @@ router.post(
  */
 router.get('/sessions/:transaction_id/cart', sessionController.getCart);
 
+/**
+ * @swagger
+ * /sessions/{transaction_id}/cart:
+ *   put:
+ *     summary: Replace session cart snapshot (AI integration)
+ *     tags: [Sessions]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: transaction_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             source: "AI_MODEL"
+ *             detected_at: "2026-03-10T12:00:00.000Z"
+ *             items:
+ *               - product_id: "b3e1b2a4-0000-0000-0000-000000000001"
+ *                 quantity: 2
+ *     responses:
+ *       200:
+ *         description: Updated session cart
+ */
+router.put('/sessions/:transaction_id/cart', sessionController.updateCartSnapshot);
+
 
 /**
  * @swagger

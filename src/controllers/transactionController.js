@@ -74,6 +74,12 @@ async function confirmTransaction(req, res, next) {
         message: error.message,
       });
     }
+    if (error.message === 'Session cart not found') {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: error.message,
+      });
+    }
     next(error);
   }
 }

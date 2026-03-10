@@ -1,5 +1,4 @@
 const sessionService = require('../services/sessionService');
-const { idempotencyMiddleware, markAsProcessed } = require('../middleware/idempotency');
 
 async function startSession(req, res, next) {
   try {
@@ -131,11 +130,49 @@ async function getCurrentSession(req, res, next) {
   }
 }
 
+async function updateCartSnapshot(req, res, next) {
+  try {
+    const { transaction_id } = req.params;
+    const { items, source, detected_at } = req.body;
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'items array is required',
+      });
+    }
+
+    const result = await sessionService.updateCartSnapshot(
+      transaction_id,
+      items,
+      source || 'AI_MODEL',
+      detected_at || null
+    );
+
+    res.json(result);
+  } catch (error) {
+    if (error.message === 'Transaction not found') {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: error.message,
+      });
+    }
+    if (error.message === 'Transaction not active') {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+}
+
 module.exports = {
   startSession,
   addInteraction,
   getCart,
   endSession,
   getCurrentSession,
+  updateCartSnapshot,
 };
 
