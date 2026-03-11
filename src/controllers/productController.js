@@ -31,7 +31,7 @@ async function createProduct(req, res, next) {
   try {
     if (!ensureSystemAdmin(req, res)) return;
 
-    const { name, brand_id, unit_price, image_reference, is_active } = req.body;
+    const { name, ai_label, brand_id, unit_price, image_reference, is_active } = req.body;
 
     if (!name || !brand_id || unit_price === undefined) {
       return res.status(400).json({
@@ -42,6 +42,7 @@ async function createProduct(req, res, next) {
 
     const product = await productService.createProduct({
       name,
+      ai_label,
       brand_id,
       unit_price,
       image_reference,

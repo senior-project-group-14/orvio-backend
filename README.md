@@ -15,7 +15,7 @@ npm run dev
 
 Optional environment variables for QR targets:
 - `HOST` (default: `0.0.0.0`)
-- `QR_FRONTEND_BASE_URL` (example: `http://yourIP:5174`)
+- `QR_FRONTEND_BASE_URL` (example: `http://192.168.1.2:5174`)
 - `QR_FRONTEND_PORT` (default: `5174`, ignored if `QR_FRONTEND_BASE_URL` is set)
 
 
@@ -25,8 +25,8 @@ Optional environment variables for QR targets:
 - orvio-device  
 
 
-## http://yourIP:3000/qr/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
+## http://192.168.1.2:3000/qr/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
 
-http://localhost:3000/qr/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
+http://localhost:3000/qr/44444444-4444-4444-4444-444444444444
 
-http://yourIP:5174/cooler/0f8322a5-9e63-4eb5-b7fa-4b0f98e11b1a
+http://192.168.1.2:5174/cooler/44444444-4444-4444-4444-444444444444

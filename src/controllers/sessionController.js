@@ -142,6 +142,16 @@ async function updateCartSnapshot(req, res, next) {
       });
     }
 
+    for (const item of items) {
+      const aiLabel = item?.ai_label ?? item?.aiLabel;
+      if (!aiLabel || typeof aiLabel !== 'string' || aiLabel.trim().length === 0) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Each item must include ai_label (or aiLabel)',
+        });
+      }
+    }
+
     const result = await sessionService.updateCartSnapshot(
       transaction_id,
       items,

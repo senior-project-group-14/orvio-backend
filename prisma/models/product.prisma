@@ -2,6 +2,7 @@
 model Product {
   product_id      String   @id @default(uuid())
   name            String   @unique @db.VarChar(255)
+  ai_label        String?  @unique @db.VarChar(255)
   brand_id        String
   unit_price      Decimal  @db.Decimal(10, 2)
   image_reference String?  @db.VarChar(255)

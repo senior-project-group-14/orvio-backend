@@ -34,6 +34,16 @@ function normalizeItemsFromTransactionItems(items) {
   return Array.from(itemMap.values());
 }
 
+function getAiLabelValue(item) {
+  const value = item?.ai_label ?? item?.aiLabel;
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 async function getTransactionOrThrow(transactionId) {
   const transaction = await prisma.transaction.findUnique({
     where: { transaction_id: transactionId },
@@ -286,25 +296,30 @@ async function updateCartSnapshot(transactionId, items, source = 'AI_MODEL', det
     throw new Error('Transaction not active');
   }
 
-  const productIds = [...new Set((items || []).map((item) => item.product_id).filter(Boolean))];
+  const aiLabels = [...new Set((items || []).map(getAiLabelValue).filter(Boolean))];
   const products = await prisma.product.findMany({
     where: {
-      product_id: { in: productIds },
+      ai_label: { in: aiLabels },
     },
     include: {
       brand: true,
     },
   });
 
-  const productsById = new Map(products.map((product) => [product.product_id, product]));
+  const productsByAiLabel = new Map(
+    products
+      .filter((product) => typeof product.ai_label === 'string' && product.ai_label.trim().length > 0)
+      .map((product) => [product.ai_label.trim(), product])
+  );
   const normalized = [];
 
   for (const item of items || []) {
-    if (!item.product_id) {
+    const aiLabel = getAiLabelValue(item);
+    if (!aiLabel) {
       continue;
     }
 
-    const product = productsById.get(item.product_id);
+    const product = productsByAiLabel.get(aiLabel);
     if (!product) {
       continue;
     }
@@ -317,7 +332,8 @@ async function updateCartSnapshot(transactionId, items, source = 'AI_MODEL', det
     const unitPrice = toMoney(item.unit_price ?? product.unit_price);
 
     normalized.push({
-      product_id: item.product_id,
+      product_id: product.product_id,
+      ai_label: product.ai_label || aiLabel,
       name: product.name,
       brand: product.brand?.brand_name || null,
       quantity,

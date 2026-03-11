@@ -256,6 +256,7 @@ async function createProduct(productData) {
     data: {
       product_id: uuidv4(),
       name: productData.name,
+      ai_label: productData.ai_label,
       brand_id: productData.brand_id,
       unit_price: productData.unit_price,
       image_reference: productData.image_reference,
@@ -268,6 +269,7 @@ async function updateProduct(productId, productData) {
   const updateData = {};
   
   if (productData.name !== undefined) updateData.name = productData.name;
+  if (productData.ai_label !== undefined) updateData.ai_label = productData.ai_label;
   if (productData.brand_id !== undefined) updateData.brand_id = productData.brand_id;
   if (productData.unit_price !== undefined) updateData.unit_price = productData.unit_price;
   if (productData.image_reference !== undefined) updateData.image_reference = productData.image_reference;

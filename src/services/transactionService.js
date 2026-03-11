@@ -147,6 +147,10 @@ async function confirmTransaction(transactionId, confirmedAt) {
         continue;
       }
 
+      if (!item.product_id) {
+        throw new Error('Session cart contains item without product_id');
+      }
+
       const unitPrice = toMoney(item.unit_price);
 
       await tx.transactionItem.create({

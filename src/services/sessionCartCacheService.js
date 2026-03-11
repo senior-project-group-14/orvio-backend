@@ -29,6 +29,7 @@ function normalizeItem(item) {
   const unitPrice = normalizeMoney(item.unit_price);
   return {
     product_id: item.product_id,
+    ai_label: item.ai_label || null,
     name: item.name,
     brand: item.brand || null,
     quantity,
@@ -162,6 +163,7 @@ function applyInteractionEvents({ transaction_id, device_id, status_id, events }
 
     itemMap.set(event.product_id, {
       product_id: event.product_id,
+      ai_label: existing?.ai_label || null,
       name: event.name,
       brand: event.brand || null,
       quantity: nextQty,

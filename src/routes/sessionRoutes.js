@@ -134,7 +134,7 @@ router.get('/sessions/:transaction_id/cart', sessionController.getCart);
  *             source: "AI_MODEL"
  *             detected_at: "2026-03-10T12:00:00.000Z"
  *             items:
- *               - product_id: "b3e1b2a4-0000-0000-0000-000000000001"
+ *               - ai_label: "coke_330ml"
  *                 quantity: 2
  *     responses:
  *       200:
