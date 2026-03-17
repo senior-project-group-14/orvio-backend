@@ -177,6 +177,62 @@ async function updateCartSnapshot(req, res, next) {
   }
 }
 
+async function updateCartItemQuantity(req, res, next) {
+  try {
+    const { transaction_id, product_id } = req.params;
+    const { delta } = req.body;
+
+    if (delta === undefined || delta === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'delta is required',
+      });
+    }
+
+    const numericDelta = Math.trunc(Number(delta));
+    if (!Number.isFinite(numericDelta) || numericDelta === 0) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'delta must be a non-zero number',
+      });
+    }
+
+    const result = await sessionService.updateCartItemQuantity(
+      transaction_id,
+      product_id,
+      numericDelta
+    );
+
+    res.json(result);
+  } catch (error) {
+    if (error.message === 'Transaction not found') {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: error.message,
+      });
+    }
+    if (error.message === 'Transaction not active') {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: error.message,
+      });
+    }
+    if (error.message === 'Cart item not found') {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: error.message,
+      });
+    }
+    if (error.message === 'Invalid quantity delta') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+}
+
 module.exports = {
   startSession,
   addInteraction,
@@ -184,5 +240,6 @@ module.exports = {
   endSession,
   getCurrentSession,
   updateCartSnapshot,
+  updateCartItemQuantity,
 };
 

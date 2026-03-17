@@ -357,6 +357,33 @@ async function updateCartSnapshot(transactionId, items, source = 'AI_MODEL', det
   return getCart(transactionId);
 }
 
+async function updateCartItemQuantity(transactionId, productId, delta) {
+  const transaction = await getTransactionOrThrow(transactionId);
+
+  if (transaction.status_id !== CONSTANTS.TRANSACTION_STATUS.ACTIVE &&
+      transaction.status_id !== CONSTANTS.TRANSACTION_STATUS.AWAITING_USER_CONFIRMATION) {
+    throw new Error('Transaction not active');
+  }
+
+  const numericDelta = Math.trunc(Number(delta));
+  if (!Number.isFinite(numericDelta) || numericDelta === 0) {
+    throw new Error('Invalid quantity delta');
+  }
+
+  const updated = sessionCartCacheService.adjustItemQuantity({
+    transaction_id: transaction.transaction_id,
+    product_id: productId,
+    delta: numericDelta,
+    source: 'USER_ADJUSTMENT',
+  });
+
+  if (!updated) {
+    throw new Error('Cart item not found');
+  }
+
+  return getCart(transactionId);
+}
+
 async function getCurrentSession(deviceId, sessionInitToken) {
   const transaction = await prisma.transaction.findFirst({
     where: {
@@ -382,5 +409,6 @@ module.exports = {
   endSession,
   getCurrentSession,
   updateCartSnapshot,
+  updateCartItemQuantity,
 };
 

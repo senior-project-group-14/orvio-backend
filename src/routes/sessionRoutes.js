@@ -142,6 +142,11 @@ router.get('/sessions/:transaction_id/cart', sessionController.getCart);
  */
 router.put('/sessions/:transaction_id/cart', sessionController.updateCartSnapshot);
 
+router.patch(
+  '/sessions/:transaction_id/cart/items/:product_id',
+  sessionController.updateCartItemQuantity
+);
+
 
 /**
  * @swagger

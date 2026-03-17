@@ -184,6 +184,46 @@ function applyInteractionEvents({ transaction_id, device_id, status_id, events }
   return toPublicCart(entry);
 }
 
+function adjustItemQuantity({ transaction_id, product_id, delta, source = 'USER_ADJUSTMENT' }) {
+  const entry = cartStore.get(transaction_id);
+  if (!entry) {
+    return null;
+  }
+
+  const numericDelta = Math.trunc(toNumber(delta, 0));
+  if (numericDelta === 0) {
+    return toPublicCart(entry);
+  }
+
+  const itemIndex = entry.cart.findIndex((item) => item.product_id === product_id);
+  if (itemIndex < 0) {
+    return null;
+  }
+
+  const current = normalizeItem(entry.cart[itemIndex]);
+  const nextQuantity = Math.max(0, current.quantity + numericDelta);
+
+  if (nextQuantity === 0) {
+    entry.cart.splice(itemIndex, 1);
+  } else {
+    entry.cart[itemIndex] = {
+      ...current,
+      quantity: nextQuantity,
+      subtotal: normalizeMoney(nextQuantity * current.unit_price),
+      metadata: {
+        ...(current.metadata || {}),
+        updated_by: 'USER',
+        updated_at: nowIso(),
+      },
+    };
+  }
+
+  recompute(entry);
+  touch(entry, source);
+  cartStore.set(transaction_id, entry);
+  return toPublicCart(entry);
+}
+
 function consumeSessionCart(transactionId) {
   const cart = getSessionCart(transactionId);
   if (!cart) {
@@ -212,6 +252,7 @@ module.exports = {
   getSessionCart,
   replaceSessionCart,
   applyInteractionEvents,
+  adjustItemQuantity,
   consumeSessionCart,
   clearSessionCart,
 };
