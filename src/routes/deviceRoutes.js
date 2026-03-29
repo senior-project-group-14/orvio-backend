@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const deviceController = require('../controllers/deviceController');
+const doorEventController = require('../controllers/doorEventController');
 const adminAuth = require('../middleware/adminAuth');
 const deviceAccess = require('../middleware/deviceAccess');
+const deviceValidation = require('../middleware/deviceValidation');
 
 /**
  * @swagger
@@ -143,5 +145,45 @@ router.get('/:device_id/telemetry', adminAuth, deviceAccess, deviceController.ge
  *                   status: "OPEN"
  */
 router.get('/:device_id/alerts', adminAuth, deviceAccess, deviceController.getDeviceAlerts);
+
+/**
+ * @swagger
+ * /devices/{device_id}/door-event:
+ *   post:
+ *     summary: Log a door open or close event
+ *     tags: [Devices]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: device_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the device
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             eventType: "OPEN"
+ *             sessionId: null
+ *     responses:
+ *       200:
+ *         description: Door event logged successfully
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: "Door OPEN event processed"
+ *               data:
+ *                 transaction_id: "7f2c4d9e-0000-0000-0000-000000000001"
+ *                 status: "session_created"
+ *                 message: "New session created on door open"
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Device not found
+ */
+router.post('/:device_id/door-event', deviceValidation, doorEventController.handleDoorEvent);
 
 module.exports = router;
