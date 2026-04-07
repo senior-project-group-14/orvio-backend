@@ -4,6 +4,7 @@ model Transaction {
   user_id          String?
   device_id        String
   start_time       DateTime
+  last_activity    DateTime @default(now())
   end_time         DateTime?
   is_active        Boolean
   status_id        Int
@@ -19,4 +20,5 @@ model Transaction {
   @@index([user_id])
   @@index([device_id])
   @@index([status_id])
+  @@index([last_activity])
 }

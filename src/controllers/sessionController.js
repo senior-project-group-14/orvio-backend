@@ -75,6 +75,30 @@ async function addInteraction(req, res, next) {
   }
 }
 
+async function heartbeat(req, res, next) {
+  try {
+    const { device_id, transaction_id } = req.params;
+    const { heartbeat_at } = req.body || {};
+
+    const result = await sessionService.heartbeat(device_id, transaction_id, heartbeat_at || null);
+    res.json(result);
+  } catch (error) {
+    if (error.message === 'Transaction not found') {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: error.message,
+      });
+    }
+    if (error.message === 'Transaction device mismatch' || error.message === 'Transaction not active') {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+}
+
 async function getCart(req, res, next) {
   try {
     const { transaction_id } = req.params;
@@ -236,6 +260,7 @@ async function updateCartItemQuantity(req, res, next) {
 module.exports = {
   startSession,
   addInteraction,
+  heartbeat,
   getCart,
   endSession,
   getCurrentSession,

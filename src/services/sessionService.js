@@ -2,6 +2,10 @@ const prisma = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const CONSTANTS = require('../config/constants');
 const sessionCartCacheService = require('./sessionCartCacheService');
+const {
+  registerActiveSession,
+  unregisterActiveSession,
+} = require('./sessionHeartbeatMonitorService');
 
 function toMoney(value) {
   const numeric = Number(value);
@@ -134,11 +138,13 @@ async function startSession(deviceId, startedAt, sessionInitToken, transactionTy
   }
   
   // Create transaction
+  const startDate = new Date(startedAt);
   const transaction = await prisma.transaction.create({
     data: {
       transaction_id: uuidv4(),
       device_id: deviceId,
-      start_time: new Date(startedAt),
+      start_time: startDate,
+      last_activity: startDate,
       is_active: true,
       status_id: CONSTANTS.TRANSACTION_STATUS.ACTIVE,
       transaction_type: transactionType || 'QR',
@@ -156,6 +162,8 @@ async function startSession(deviceId, startedAt, sessionInitToken, transactionTy
     device_id: transaction.device_id,
     status_id: transaction.status_id,
   });
+
+  registerActiveSession(transaction.transaction_id);
   
   return {
     transaction_id: transaction.transaction_id,
@@ -275,6 +283,50 @@ async function addInteraction(deviceId, transactionId, events) {
   return getCart(transactionId);
 }
 
+async function heartbeat(deviceId, transactionId, heartbeatAt = null) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { transaction_id: transactionId },
+    select: {
+      transaction_id: true,
+      device_id: true,
+      status_id: true,
+      is_active: true,
+    },
+  });
+
+  if (!transaction) {
+    throw new Error('Transaction not found');
+  }
+
+  if (transaction.device_id !== deviceId) {
+    throw new Error('Transaction device mismatch');
+  }
+
+  if (!transaction.is_active || transaction.status_id !== CONSTANTS.TRANSACTION_STATUS.ACTIVE) {
+    throw new Error('Transaction not active');
+  }
+
+  const parsed = heartbeatAt ? new Date(heartbeatAt) : new Date();
+  const activityAt = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+
+  const updated = await prisma.transaction.update({
+    where: { transaction_id: transactionId },
+    data: {
+      last_activity: activityAt,
+    },
+    select: {
+      transaction_id: true,
+      last_activity: true,
+    },
+  });
+
+  return {
+    transaction_id: updated.transaction_id,
+    last_activity: updated.last_activity,
+    alive: true,
+  };
+}
+
 async function getCart(transactionId) {
   const transaction = await prisma.transaction.findUnique({
     where: { transaction_id: transactionId },
@@ -355,6 +407,8 @@ async function endSession(deviceId, transactionId, endedAt, cancelled = false) {
   if (cancelled) {
     sessionCartCacheService.clearSessionCart(transactionId);
   }
+
+  unregisterActiveSession(transactionId);
   
   return {
     transaction_id: updated.transaction_id,
@@ -579,6 +633,7 @@ async function getCurrentSession(deviceId, sessionInitToken) {
 module.exports = {
   startSession,
   addInteraction,
+  heartbeat,
   getCart,
   endSession,
   getCurrentSession,

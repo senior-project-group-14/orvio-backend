@@ -1,6 +1,10 @@
 const prisma = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const CONSTANTS = require('../config/constants');
+const {
+  registerActiveSession,
+  unregisterActiveSession,
+} = require('./sessionHeartbeatMonitorService');
 
 /**
  * Log a door event to SystemLog with structured JSON message
@@ -83,11 +87,14 @@ async function handleDoorOpen(coolerId, sessionId = null) {
       transaction_id: uuidv4(),
       device_id: coolerId,
       start_time: new Date(),
+      last_activity: new Date(),
       is_active: true,
       status_id: CONSTANTS.TRANSACTION_STATUS.ACTIVE,
       transaction_type: 'DOOR_OPEN',
     },
   });
+
+  registerActiveSession(newTransaction.transaction_id);
 
   // Update device door status
   await prisma.cooler.update({
@@ -164,6 +171,8 @@ async function handleDoorClose(coolerId) {
       status_id: CONSTANTS.TRANSACTION_STATUS.AWAITING_USER_CONFIRMATION,
     },
   });
+
+  unregisterActiveSession(activeTransaction.transaction_id);
 
   // Log door close event
   await logDoorEvent({

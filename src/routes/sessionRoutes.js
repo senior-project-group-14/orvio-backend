@@ -83,6 +83,12 @@ router.post(
   sessionController.addInteraction
 );
 
+router.post(
+  '/devices/:device_id/sessions/:transaction_id/heartbeat',
+  deviceAuth,
+  sessionController.heartbeat
+);
+
 
 /**
  * @swagger
