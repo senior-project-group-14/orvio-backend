@@ -210,6 +210,9 @@ router.post('/devices', sysadminAuth, sysadminController.createDevice);
 // PATCH /sysadmin/devices/:device_id
 router.patch('/devices/:device_id', sysadminAuth, sysadminController.updateDevice);
 
+// DELETE /sysadmin/devices/:device_id
+router.delete('/devices/:device_id', sysadminAuth, sysadminController.deleteDevice);
+
 /**
  * @swagger
  * /assignments:

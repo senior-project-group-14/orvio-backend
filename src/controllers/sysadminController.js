@@ -129,6 +129,25 @@ async function updateDevice(req, res, next) {
   }
 }
 
+async function deleteDevice(req, res, next) {
+  try {
+    const { device_id } = req.params;
+    const deleted = await sysadminService.deleteDevice(device_id);
+    res.json({
+      message: 'Device deleted',
+      device_id: deleted.device_id,
+    });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Device not found',
+      });
+    }
+    next(error);
+  }
+}
+
 // Assignment management
 async function getAllAssignments(req, res, next) {
   try {
@@ -304,6 +323,7 @@ module.exports = {
   deleteAdmin,
   createDevice,
   updateDevice,
+  deleteDevice,
   getAllAssignments,
   createAssignment,
   updateAssignment,

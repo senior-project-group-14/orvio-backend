@@ -140,6 +140,36 @@ async function updateDevice(deviceId, deviceData) {
   });
 }
 
+async function deleteDevice(deviceId) {
+  return prisma.$transaction(async (tx) => {
+    const transactions = await tx.transaction.findMany({
+      where: { device_id: deviceId },
+      select: { transaction_id: true },
+    });
+
+    const transactionIds = transactions.map((item) => item.transaction_id);
+
+    if (transactionIds.length > 0) {
+      await tx.transactionItem.deleteMany({
+        where: { transaction_id: { in: transactionIds } },
+      });
+    }
+
+    await tx.transaction.deleteMany({ where: { device_id: deviceId } });
+    await tx.temperatureHistory.deleteMany({ where: { device_id: deviceId } });
+    await tx.telemetry.deleteMany({ where: { device_id: deviceId } });
+    await tx.alert.deleteMany({ where: { device_id: deviceId } });
+    await tx.inventory.deleteMany({ where: { device_id: deviceId } });
+    await tx.coolerProduct.deleteMany({ where: { device_id: deviceId } });
+    await tx.deviceAssignment.deleteMany({ where: { device_id: deviceId } });
+
+    return tx.cooler.delete({
+      where: { device_id: deviceId },
+      select: { device_id: true },
+    });
+  });
+}
+
 async function getAllAssignments({ page, limit }) {
   return paginate(
     prisma.deviceAssignment,
@@ -310,6 +340,7 @@ module.exports = {
   deleteAdmin,
   createDevice,
   updateDevice,
+  deleteDevice,
   getAllAssignments,
   createAssignment,
   updateAssignment,
