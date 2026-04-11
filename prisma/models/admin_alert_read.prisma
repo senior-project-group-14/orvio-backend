@@ -1,0 +1,13 @@
+// Extracted model fragment; Prisma CLI still needs a merged schema.
+model AdminAlertRead {
+  admin_user_id String
+  alert_id      String
+  read_at       DateTime @default(now())
+
+  admin User  @relation(fields: [admin_user_id], references: [user_id], onDelete: Cascade)
+  alert Alert @relation(fields: [alert_id], references: [alert_id], onDelete: Cascade)
+
+  @@id([admin_user_id, alert_id])
+  @@index([admin_user_id, read_at])
+  @@index([alert_id])
+}

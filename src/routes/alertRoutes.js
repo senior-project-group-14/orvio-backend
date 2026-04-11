@@ -6,6 +6,9 @@ const adminAuth = require('../middleware/adminAuth');
 // All routes require admin authentication
 router.use(adminAuth);
 
+router.get('/reads', alertController.getAlertReads);
+router.post('/:alert_id/read', alertController.markAlertRead);
+
 /**
  * @swagger
  * /alerts/{alert_id}:

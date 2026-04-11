@@ -19,6 +19,19 @@ model ActionTypeLookup {
   transactionItems TransactionItem[]
 }
 // Extracted model fragment; Prisma CLI still needs a merged schema.
+model AdminAlertRead {
+  admin_user_id String
+  alert_id      String
+  read_at       DateTime @default(now())
+
+  admin User  @relation(fields: [admin_user_id], references: [user_id], onDelete: Cascade)
+  alert Alert @relation(fields: [alert_id], references: [alert_id], onDelete: Cascade)
+
+  @@id([admin_user_id, alert_id])
+  @@index([admin_user_id, read_at])
+  @@index([alert_id])
+}
+// Extracted model fragment; Prisma CLI still needs a merged schema.
 model Alert {
   alert_id        String             @id @default(uuid())
   device_id       String
@@ -30,6 +43,7 @@ model Alert {
 
   device          Cooler             @relation(fields: [device_id], references: [device_id])
   status          AlertStatusLookup  @relation(fields: [status_id], references: [id])
+  adminReads      AdminAlertRead[]
 
   @@index([device_id])
   @@index([status_id])
@@ -270,6 +284,7 @@ model User {
   assignedCoolers   Cooler[]            @relation("CoolerAdmin")
   transactions     Transaction[]
   deviceAssignments DeviceAssignment[]
+  alertReads        AdminAlertRead[]
 
   @@index([role_id])
 }

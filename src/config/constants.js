@@ -25,6 +25,7 @@ module.exports = {
     OPEN: 0,
     RESOLVED: 1,
     ACKNOWLEDGED: 2,
+    READ: 3,
   },
 
   // Transaction Status Lookup IDs

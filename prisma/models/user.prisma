@@ -14,6 +14,7 @@ model User {
   assignedCoolers   Cooler[]            @relation("CoolerAdmin")
   transactions     Transaction[]
   deviceAssignments DeviceAssignment[]
+  alertReads        AdminAlertRead[]
 
   @@index([role_id])
 }

@@ -57,6 +57,7 @@ async function seedLookupTables() {
       { id: 0, name: 'OPEN' },
       { id: 1, name: 'RESOLVED' },
       { id: 2, name: 'ACKNOWLEDGED' },
+      { id: 3, name: 'READ' },
     ];
 
     for (const status of alertStatuses) {

@@ -10,6 +10,7 @@ model Alert {
 
   device          Cooler             @relation(fields: [device_id], references: [device_id])
   status          AlertStatusLookup  @relation(fields: [status_id], references: [id])
+  adminReads      AdminAlertRead[]
 
   @@index([device_id])
   @@index([status_id])
