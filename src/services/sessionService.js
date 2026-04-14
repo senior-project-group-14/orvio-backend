@@ -2,6 +2,7 @@ const prisma = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const CONSTANTS = require('../config/constants');
 const sessionCartCacheService = require('./sessionCartCacheService');
+const { createTransactionWithCode } = require('./transactionCodeService');
 const {
   registerActiveSession,
   unregisterActiveSession,
@@ -137,18 +138,15 @@ async function startSession(deviceId, startedAt, sessionInitToken, transactionTy
     throw new Error('Device not active');
   }
   
-  // Create transaction
   const startDate = new Date(startedAt);
-  const transaction = await prisma.transaction.create({
-    data: {
-      transaction_id: uuidv4(),
-      device_id: deviceId,
-      start_time: startDate,
-      last_activity: startDate,
-      is_active: true,
-      status_id: CONSTANTS.TRANSACTION_STATUS.ACTIVE,
-      transaction_type: transactionType || 'QR',
-    },
+  const transaction = await createTransactionWithCode({
+    transaction_id: uuidv4(),
+    device_id: deviceId,
+    start_time: startDate,
+    last_activity: startDate,
+    is_active: true,
+    status_id: CONSTANTS.TRANSACTION_STATUS.ACTIVE,
+    transaction_type: transactionType || 'QR',
   });
   
   // Update device door status
@@ -167,6 +165,7 @@ async function startSession(deviceId, startedAt, sessionInitToken, transactionTy
   
   return {
     transaction_id: transaction.transaction_id,
+    transaction_code: transaction.transaction_code,
     device_id: transaction.device_id,
     status_id: transaction.status_id,
     is_active: transaction.is_active,

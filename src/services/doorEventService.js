@@ -1,6 +1,7 @@
 const prisma = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const CONSTANTS = require('../config/constants');
+const { createTransactionWithCode } = require('./transactionCodeService');
 const {
   registerActiveSession,
   unregisterActiveSession,
@@ -82,16 +83,14 @@ async function handleDoorOpen(coolerId, sessionId = null) {
   }
 
   // Create new transaction/session
-  const newTransaction = await prisma.transaction.create({
-    data: {
-      transaction_id: uuidv4(),
-      device_id: coolerId,
-      start_time: new Date(),
-      last_activity: new Date(),
-      is_active: true,
-      status_id: CONSTANTS.TRANSACTION_STATUS.ACTIVE,
-      transaction_type: 'DOOR_OPEN',
-    },
+  const newTransaction = await createTransactionWithCode({
+    transaction_id: uuidv4(),
+    device_id: coolerId,
+    start_time: new Date(),
+    last_activity: new Date(),
+    is_active: true,
+    status_id: CONSTANTS.TRANSACTION_STATUS.ACTIVE,
+    transaction_type: 'DOOR_OPEN',
   });
 
   registerActiveSession(newTransaction.transaction_id);
@@ -112,6 +111,7 @@ async function handleDoorOpen(coolerId, sessionId = null) {
 
   return {
     transaction_id: newTransaction.transaction_id,
+    transaction_code: newTransaction.transaction_code,
     status: 'session_created',
     message: 'New session created on door open',
   };

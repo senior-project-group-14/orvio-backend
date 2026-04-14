@@ -251,6 +251,11 @@ async function getDashboardSummary(adminUserId, isSystemAdmin) {
         items: {
           select: {
             quantity: true,
+            product: {
+              select: {
+                name: true,
+              },
+            },
             actionType: {
               select: {
                 name: true,
@@ -280,15 +285,65 @@ async function getDashboardSummary(adminUserId, isSystemAdmin) {
 
   const recentActivity = recentTransactionsRaw.map((transaction) => {
     const items = transaction.items || [];
-    const totalItems = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-    const actionType = items[0]?.actionType?.name || transaction.transaction_type || null;
+    const movementItems = items.filter((item) => Number(item?.quantity || 0) !== 0);
+    const totalItems = movementItems.reduce((sum, item) => {
+      const quantity = Math.abs(Number(item.quantity || 0));
+      return sum + (Number.isFinite(quantity) ? quantity : 0);
+    }, 0);
+
+    const actionCounts = movementItems.reduce((acc, item) => {
+      const name = String(item?.actionType?.name || '').toLowerCase();
+      const quantity = Math.abs(Number(item?.quantity || 0));
+      if (!Number.isFinite(quantity) || quantity <= 0) return acc;
+
+      if (name.includes('return')) {
+        acc.returned += quantity;
+      } else {
+        acc.taken += quantity;
+      }
+      return acc;
+    }, { taken: 0, returned: 0 });
+
+    const actionType = movementItems.find((item) => item?.actionType?.name)?.actionType?.name
+      || transaction.transaction_type
+      || null;
+    const productSummary = movementItems.length > 0
+      ? movementItems
+        .map((item) => `${item.product?.name || 'Unknown product'} x${Math.abs(Number(item.quantity || 0))}`)
+        .join(', ')
+      : '-';
+    const hasProductMovement = totalItems > 0;
+
+    let displayAction = 'No product movement';
+    if (hasProductMovement) {
+      if (actionCounts.taken > 0 && actionCounts.returned > 0) {
+        displayAction = 'Take/Return';
+      } else if (actionCounts.returned > 0) {
+        displayAction = 'Return';
+      } else {
+        displayAction = 'Take';
+      }
+    }
+
+    let displayCount = 'No product movement';
+    if (hasProductMovement) {
+      if (actionCounts.taken > 0 && actionCounts.returned > 0) {
+        displayCount = `Take ${actionCounts.taken} / Return ${actionCounts.returned}`;
+      } else {
+        displayCount = `${totalItems} item${totalItems === 1 ? '' : 's'}`;
+      }
+    }
 
     return {
       device_id: transaction.device_id,
       fridge: deviceNameMap.get(transaction.device_id) || transaction.device_id,
       start_time: transaction.start_time,
       action_type: actionType,
-      item_count: totalItems || items.length || 1,
+      item_count: totalItems,
+      product_summary: productSummary,
+      has_product_movement: hasProductMovement,
+      display_action: displayAction,
+      display_count: displayCount,
     };
   });
 

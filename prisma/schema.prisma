@@ -222,6 +222,7 @@ model TemperatureHistory {
 // Extracted model fragment; Prisma CLI still needs a merged schema.
 model Transaction {
   transaction_id   String   @id @default(uuid())
+  transaction_code String?  @unique @db.VarChar(32)
   user_id          String?
   device_id        String
   start_time       DateTime

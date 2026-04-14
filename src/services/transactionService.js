@@ -40,6 +40,7 @@ async function getTransactionSummary(transactionId) {
   if (cachedCart) {
     return {
       transaction_id: transaction.transaction_id,
+      transaction_code: transaction.transaction_code,
       device_id: transaction.device_id,
       device_name: transaction.device.name,
       status_id: transaction.status_id,
@@ -83,6 +84,7 @@ async function getTransactionSummary(transactionId) {
   
   return {
     transaction_id: transaction.transaction_id,
+    transaction_code: transaction.transaction_code,
     device_id: transaction.device_id,
     device_name: transaction.device.name,
     status_id: transaction.status_id,
@@ -266,6 +268,7 @@ async function disputeTransaction(transactionId, reason, message, reportedAt) {
   
   return {
     transaction_id: updated.transaction_id,
+    transaction_code: transaction.transaction_code,
     status_id: updated.status_id,
     reason,
     message,
@@ -355,6 +358,7 @@ async function applyInventoryManually(transactionId) {
   
   return {
     transaction_id: transactionId,
+    transaction_code: transaction.transaction_code,
     inventory_updated: true,
     alerts_created: result.alertsCreated,
   };
