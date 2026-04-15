@@ -15,8 +15,11 @@ npm run dev
 
 Optional environment variables for QR targets:
 - `HOST` (default: `0.0.0.0`)
-- `QR_FRONTEND_BASE_URL` (example: `http://localhost:5174`)
+- `QR_FRONTEND_BASE_URL` (recommended on local network: `http://192.168.1.50:5174`)
 - `QR_FRONTEND_PORT` (default: `5174`, ignored if `QR_FRONTEND_BASE_URL` is set)
+
+If `QR_FRONTEND_BASE_URL` is not set, `/qr/:device_id` will try to build the URL from request host.
+When request host is `localhost` or `127.0.0.1`, backend falls back to detected LAN IP so phones on the same Wi-Fi can open the QR link.
 
 
 ## Related Repos
