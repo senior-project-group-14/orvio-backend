@@ -426,6 +426,185 @@ async function removeProductFromCooler(deviceId, productId) {
   });
 }
 
+async function addToInventory(deviceId, productId, quantityToAdd) {
+  if (!deviceId || !productId || quantityToAdd <= 0) {
+    throw new Error('Invalid deviceId, productId, or quantityToAdd');
+  }
+
+  // Find current inventory
+  let inventory = await prisma.inventory.findUnique({
+    where: {
+      device_id_product_id: {
+        device_id: deviceId,
+        product_id: productId,
+      },
+    },
+  });
+
+  // If inventory doesn't exist, create it
+  if (!inventory) {
+    inventory = await prisma.inventory.create({
+      data: {
+        device_id: deviceId,
+        product_id: productId,
+        current_stock: quantityToAdd,
+        critic_stock: 5, // Default critical stock level
+        last_stock_update: new Date(),
+      },
+      include: {
+        product: {
+          include: {
+            brand: true,
+          },
+        },
+      },
+    });
+  } else {
+    // Update existing inventory
+    inventory = await prisma.inventory.update({
+      where: {
+        device_id_product_id: {
+          device_id: deviceId,
+          product_id: productId,
+        },
+      },
+      data: {
+        current_stock: {
+          increment: quantityToAdd,
+        },
+        last_stock_update: new Date(),
+      },
+      include: {
+        product: {
+          include: {
+            brand: true,
+          },
+        },
+      },
+    });
+  }
+
+  // Check if we need to create an alert (if stock was low but now it's okay)
+  // or remove an alert if stock is now above critical level
+  const alertExists = await prisma.alert.findFirst({
+    where: {
+      device_id: deviceId,
+      alert_type: 'LOW_STOCK',
+      status_id: 1, // OPEN status
+    },
+  });
+
+  if (alertExists && inventory.current_stock > inventory.critic_stock) {
+    // Update alert to resolved
+    await prisma.alert.update({
+      where: {
+        alert_id: alertExists.alert_id,
+      },
+      data: {
+        status_id: 2, // RESOLVED status
+      },
+    });
+  }
+
+  return {
+    device_id: deviceId,
+    product_id: productId,
+    product_name: inventory.product?.name,
+    brand_name: inventory.product?.brand?.brand_name,
+    previous_stock: inventory.current_stock - quantityToAdd,
+    quantity_added: quantityToAdd,
+    new_stock: inventory.current_stock,
+    critic_stock: inventory.critic_stock,
+    last_stock_update: inventory.last_stock_update,
+  };
+}
+
+async function updateInventoryQuantity(deviceId, productId, newQuantity) {
+  if (!deviceId || !productId || newQuantity === undefined || newQuantity === null) {
+    throw new Error('Invalid deviceId, productId, or newQuantity');
+  }
+
+  if (typeof newQuantity !== 'number' || newQuantity < 0 || !Number.isInteger(newQuantity)) {
+    throw new Error('newQuantity must be a non-negative integer');
+  }
+
+  // Get current inventory
+  let inventory = await prisma.inventory.findUnique({
+    where: {
+      device_id_product_id: {
+        device_id: deviceId,
+        product_id: productId,
+      },
+    },
+  });
+
+  if (!inventory) {
+    throw new Error('Inventory not found for this product and device');
+  }
+
+  // Update inventory with new quantity
+  inventory = await prisma.inventory.update({
+    where: {
+      device_id_product_id: {
+        device_id: deviceId,
+        product_id: productId,
+      },
+    },
+    data: {
+      current_stock: newQuantity,
+      last_stock_update: new Date(),
+    },
+    include: {
+      product: {
+        include: {
+          brand: true,
+        },
+      },
+    },
+  });
+
+  // Check if we need to create/update alerts based on stock level
+  const alertExists = await prisma.alert.findFirst({
+    where: {
+      device_id: deviceId,
+      alert_type: 'LOW_STOCK',
+      status_id: 1, // OPEN status
+    },
+  });
+
+  // If stock is now below critical level and no alert exists, create one
+  if (inventory.current_stock <= inventory.critic_stock && !alertExists) {
+    await prisma.alert.create({
+      data: {
+        device_id: deviceId,
+        alert_type: 'LOW_STOCK',
+        message: `Low stock alert for ${inventory.product?.name}`,
+        status_id: 1, // OPEN
+      },
+    });
+  } else if (alertExists && inventory.current_stock > inventory.critic_stock) {
+    // If stock is now above critical and alert exists, resolve it
+    await prisma.alert.update({
+      where: {
+        alert_id: alertExists.alert_id,
+      },
+      data: {
+        status_id: 2, // RESOLVED
+      },
+    });
+  }
+
+  return {
+    device_id: deviceId,
+    product_id: productId,
+    product_name: inventory.product?.name,
+    brand_name: inventory.product?.brand?.brand_name,
+    new_stock: inventory.current_stock,
+    critic_stock: inventory.critic_stock,
+    last_stock_update: inventory.last_stock_update,
+  };
+}
+
 async function checkCoolerInventoryConsistency(deviceId) {
   const [assignedProducts, inventoryItems] = await Promise.all([
     prisma.coolerProduct.findMany({
@@ -501,5 +680,7 @@ module.exports = {
   getCoolerProducts,
   assignProductToCooler,
   removeProductFromCooler,
+  addToInventory,
+  updateInventoryQuantity,
   checkCoolerInventoryConsistency,
 };

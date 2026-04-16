@@ -74,6 +74,105 @@ router.get('/:device_id/inventory', adminAuth, deviceAccess, deviceController.ge
 
 /**
  * @swagger
+ * /devices/{device_id}/inventory:
+ *   post:
+ *     summary: Add items to device inventory
+ *     tags: [Devices]
+ *     security:
+ *       - AdminToken: []
+ *     parameters:
+ *       - in: path
+ *         name: device_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the device
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - product_id
+ *               - quantity
+ *             properties:
+ *               product_id:
+ *                 type: string
+ *                 description: The ID of the product
+ *               quantity:
+ *                 type: integer
+ *                 description: Quantity to add (must be positive integer)
+ *     responses:
+ *       201:
+ *         description: Inventory updated successfully
+ *         content:
+ *           application/json:
+ *             example:
+ *               device_id: "dev-0001"
+ *               product_id: "b3e1b2a4-0000-0000-0000-000000000001"
+ *               product_name: "Coke 330ml"
+ *               quantity_added: 10
+ *               new_stock: 20
+ *       400:
+ *         description: Bad request (missing or invalid fields)
+ *       404:
+ *         description: Device or product not found
+ */
+router.post('/:device_id/inventory', adminAuth, deviceAccess, deviceController.addInventoryToDevice);
+
+/**
+ * @swagger
+ * /devices/{device_id}/inventory/{product_id}:
+ *   put:
+ *     summary: Update (set) quantity for a product in device inventory
+ *     tags: [Devices]
+ *     security:
+ *       - AdminToken: []
+ *     parameters:
+ *       - in: path
+ *         name: device_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the device
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the product
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - quantity
+ *             properties:
+ *               quantity:
+ *                 type: integer
+ *                 description: New quantity (must be non-negative integer)
+ *     responses:
+ *       200:
+ *         description: Inventory updated successfully
+ *         content:
+ *           application/json:
+ *             example:
+ *               device_id: "dev-0001"
+ *               product_id: "b3e1b2a4-0000-0000-0000-000000000001"
+ *               product_name: "Coke 330ml"
+ *               new_stock: 15
+ *       400:
+ *         description: Bad request (missing or invalid fields)
+ *       404:
+ *         description: Device, product, or inventory not found
+ */
+router.put('/:device_id/inventory/:product_id', adminAuth, deviceAccess, deviceController.updateInventoryQuantity);
+
+/**
+ * @swagger
  * /devices/{device_id}/transactions:
  *   get:
  *     summary: Get transactions for a specific device

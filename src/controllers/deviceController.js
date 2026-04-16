@@ -143,6 +143,84 @@ async function checkCoolerInventory(req, res, next) {
   }
 }
 
+async function updateInventoryQuantity(req, res, next) {
+  try {
+    const { device_id, product_id } = req.params;
+    const { quantity } = req.body;
+
+    // Validate input
+    if (quantity === undefined || quantity === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'quantity is required',
+      });
+    }
+
+    if (typeof quantity !== 'number' || quantity < 0 || !Number.isInteger(quantity)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'quantity must be a non-negative integer',
+      });
+    }
+
+    const result = await deviceService.updateInventoryQuantity(device_id, product_id, quantity);
+    res.json(result);
+  } catch (error) {
+    if (error.code === 'P2025' || error.message?.includes('not found')) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: error.message || 'Inventory not found',
+      });
+    }
+    if (error.message && error.message.includes('Invalid')) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+}
+
+async function addInventoryToDevice(req, res, next) {
+  try {
+    const { device_id } = req.params;
+    const { product_id, quantity } = req.body;
+
+    // Validate input
+    if (!product_id || quantity === undefined || quantity === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'product_id and quantity are required',
+      });
+    }
+
+    if (typeof quantity !== 'number' || quantity <= 0 || !Number.isInteger(quantity)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'quantity must be a positive integer',
+      });
+    }
+
+    const result = await deviceService.addToInventory(device_id, product_id, quantity);
+    res.status(201).json(result);
+  } catch (error) {
+    if (error.code === 'P2003') {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Device or product not found',
+      });
+    }
+    if (error.message && error.message.includes('Invalid')) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+}
+
 module.exports = {
   getDevices,
   getDashboardSummary,
@@ -155,4 +233,6 @@ module.exports = {
   assignProductToCooler,
   removeProductFromCooler,
   checkCoolerInventory,
+  updateInventoryQuantity,
+  addInventoryToDevice,
 };
