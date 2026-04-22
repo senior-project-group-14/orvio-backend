@@ -17,7 +17,10 @@ http.createServer(requestHandler).listen(3000, () => {
 });*/
 
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const morgan = require('morgan');
 //const errorHandler = require('./middleware/errorHandler');
@@ -55,8 +58,43 @@ app.use(
 // Handle preflight requests
 //app.options('*', cors());
 app.use(morgan('dev'));
+app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve frontend build in production with explicit cache policy.
+if (process.env.NODE_ENV === 'production') {
+  const fallbackBuildPath = path.resolve(__dirname, '../../orvio-frontend/frontend/build');
+  const frontendBuildPath = process.env.FRONTEND_BUILD_PATH || fallbackBuildPath;
+  const frontendExists = fs.existsSync(frontendBuildPath);
+
+  if (frontendExists) {
+    app.use(
+      '/orvio-ui/assets',
+      express.static(path.join(frontendBuildPath, 'assets'), {
+        immutable: true,
+        maxAge: '365d',
+      })
+    );
+
+    app.use(
+      '/orvio-ui',
+      express.static(frontendBuildPath, {
+        maxAge: 0,
+        setHeaders: (res, servedFilePath) => {
+          if (servedFilePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      })
+    );
+
+    app.get('/orvio-ui/*', (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+  }
+}
 
 // Swagger UI route
 app.use(
