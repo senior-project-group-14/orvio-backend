@@ -60,3 +60,6 @@ jspm_packages/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Ignore package-lock.json 
+package-lock.json

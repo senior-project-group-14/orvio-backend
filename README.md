@@ -33,3 +33,39 @@ When request host is `localhost` or `127.0.0.1`, backend falls back to detected 
 http://localhost:3000/qr/44444444-4444-4444-4444-444444444444
 
 http://localhost:5174/cooler/44444444-4444-4444-4444-444444444444
+
+## Smoke Test
+
+Backend için çalıştırılabilir smoke test scripti:
+
+```bash
+npm run smoke:test
+```
+
+Script aşağıdaki kontrolleri yapar:
+- API root/health
+- Unauthorized erişim kontrolü
+- Admin login + /auth/me
+- Dashboard summary + device list
+- Session start/current/cart snapshot/heartbeat/end
+- Socket.IO `door_event` yayını
+
+Önerilen ortam değişkenleri:
+
+```bash
+SMOKE_BASE_URL=http://localhost:3000
+SMOKE_ADMIN_EMAIL=admin@example.com
+SMOKE_ADMIN_PASSWORD=your-password
+SMOKE_DEVICE_ID=your-device-uuid
+SMOKE_DEVICE_TOKEN=smoke-test-device-token
+SMOKE_AI_LABEL=coke_330ml
+SMOKE_TIMEOUT_MS=8000
+SMOKE_RUN_SESSION=true
+SMOKE_RUN_SOCKET=true
+```
+
+Notlar:
+- `SMOKE_ADMIN_EMAIL` ve `SMOKE_ADMIN_PASSWORD` zorunludur.
+- Session/Socket adımları için `SMOKE_DEVICE_ID` gerekir.
+- Session adımlarını kapatmak için `SMOKE_RUN_SESSION=false` kullanabilirsiniz.
+- Socket adımını kapatmak için `SMOKE_RUN_SOCKET=false` kullanabilirsiniz.
