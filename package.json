@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
+    "smoke:test": "node scripts/smoke-test.js",
+    "build": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
-    "postinstall": "prisma generate",
-    "build": "prisma generate"
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +36,8 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "prisma": "^5.0.0",
+    "socket.io-client": "^4.8.1"
   }
 }
