@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const prisma = require('./database');
 const CONSTANTS = require('../config/constants');
 
-const SESSION_PRESENCE_REFRESH_MS = 5000;
+const SESSION_PRESENCE_REFRESH_MS = 100;
 
 const sessionPresenceByTransactionId = new Map();
 const sessionPresenceBySocketId = new Map();

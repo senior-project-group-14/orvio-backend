@@ -144,7 +144,6 @@ function applyInteractionEvents({ transaction_id, device_id, status_id, events }
 
   entry.device_id = device_id;
   entry.status_id = status_id;
-
   const itemMap = new Map(entry.cart.map((item) => [item.product_id, { ...item }]));
 
   for (const event of events) {
@@ -225,10 +224,17 @@ function adjustItemQuantity({ transaction_id, product_id, delta, source = 'USER_
 }
 
 function consumeSessionCart(transactionId) {
-  const cart = getSessionCart(transactionId);
-  if (!cart) {
+  const entry = cartStore.get(transactionId);
+  if (!entry) {
     return null;
   }
+
+  if (entry.expires_at <= Date.now()) {
+    cartStore.delete(transactionId);
+    return null;
+  }
+
+  const cart = toPublicCart(entry);
 
   cartStore.delete(transactionId);
   return cart;

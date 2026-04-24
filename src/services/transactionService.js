@@ -11,6 +11,24 @@ function toMoney(value) {
   return Number(numeric.toFixed(2));
 }
 
+function buildTransactionDetailsFromCart(items) {
+  const detailParts = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const quantity = Math.max(0, Number(item?.quantity || 0));
+    if (quantity <= 0) {
+      continue;
+    }
+
+    const label = String(item?.ai_label || item?.name || item?.product_id || '').trim();
+    if (!label) {
+      continue;
+    }
+
+    detailParts.push(`${label}:${quantity}`);
+  }
+  return detailParts.join(',');
+}
+
 async function getTransactionSummary(transactionId) {
   const transaction = await prisma.transaction.findUnique({
     where: { transaction_id: transactionId },
@@ -125,6 +143,7 @@ async function confirmTransaction(transactionId, confirmedAt) {
   }
 
   const cartItems = cartSnapshot.cart.filter((item) => Number(item.quantity) > 0);
+  const nextTransactionDetails = buildTransactionDetailsFromCart(cartItems);
   
   // Use transaction to ensure atomicity
   const result = await prisma.$transaction(async (tx) => {
@@ -133,6 +152,7 @@ async function confirmTransaction(transactionId, confirmedAt) {
       where: { transaction_id: transactionId },
       data: {
         status_id: CONSTANTS.TRANSACTION_STATUS.COMPLETED,
+        transaction_details: nextTransactionDetails,
       },
     });
     

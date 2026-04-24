@@ -4,6 +4,11 @@ const CONSTANTS = require('../config/constants');
 const sessionCartCacheService = require('./sessionCartCacheService');
 const { createTransactionWithCode } = require('./transactionCodeService');
 const {
+  getProductByAiLabel,
+  isProductCacheLoaded,
+  refreshProductCache,
+} = require('./aiProductCacheService');
+const {
   registerActiveSession,
   unregisterActiveSession,
 } = require('./sessionHeartbeatMonitorService');
@@ -327,6 +332,24 @@ async function heartbeat(deviceId, transactionId, heartbeatAt = null) {
 }
 
 async function getCart(transactionId) {
+  const cached = sessionCartCacheService.getSessionCart(transactionId);
+
+  if (cached) {
+    const transaction = await prisma.transaction.findUnique({
+      where: { transaction_id: transactionId },
+      select: { status: true },
+    });
+
+    if (!transaction) {
+      throw new Error('Transaction not found');
+    }
+
+    return {
+      ...cached,
+      status: transaction.status,
+    };
+  }
+
   const transaction = await prisma.transaction.findUnique({
     where: { transaction_id: transactionId },
     include: {
@@ -347,21 +370,17 @@ async function getCart(transactionId) {
     throw new Error('Transaction not found');
   }
 
-  let cached = sessionCartCacheService.getSessionCart(transactionId);
-
-  if (!cached) {
-    const fallbackItems = normalizeItemsFromTransactionItems(transaction.items || []);
-    cached = sessionCartCacheService.replaceSessionCart({
-      transaction_id: transaction.transaction_id,
-      device_id: transaction.device_id,
-      status_id: transaction.status_id,
-      items: fallbackItems,
-      source: 'DB_FALLBACK',
-    });
-  }
+  const fallbackItems = normalizeItemsFromTransactionItems(transaction.items || []);
+  const rebuilt = sessionCartCacheService.replaceSessionCart({
+    transaction_id: transaction.transaction_id,
+    device_id: transaction.device_id,
+    status_id: transaction.status_id,
+    items: fallbackItems,
+    source: 'DB_FALLBACK',
+  });
 
   return {
-    ...cached,
+    ...rebuilt,
     status: transaction.status,
   };
 }
@@ -424,24 +443,10 @@ async function updateCartSnapshot(transactionId, items, source = 'AI_MODEL', det
     throw new Error('Transaction not active');
   }
 
-  const currentCart = sessionCartCacheService.getSessionCart(transaction.transaction_id);
-  const previousItems = currentCart?.cart || [];
+  if (!isProductCacheLoaded()) {
+    await refreshProductCache();
+  }
 
-  const aiLabels = [...new Set((items || []).map(getAiLabelValue).filter(Boolean))];
-  const products = await prisma.product.findMany({
-    where: {
-      ai_label: { in: aiLabels },
-    },
-    include: {
-      brand: true,
-    },
-  });
-
-  const productsByAiLabel = new Map(
-    products
-      .filter((product) => typeof product.ai_label === 'string' && product.ai_label.trim().length > 0)
-      .map((product) => [product.ai_label.trim(), product])
-  );
   const normalized = [];
 
   for (const item of items || []) {
@@ -450,7 +455,7 @@ async function updateCartSnapshot(transactionId, items, source = 'AI_MODEL', det
       continue;
     }
 
-    const product = productsByAiLabel.get(aiLabel);
+    const product = getProductByAiLabel(aiLabel);
     if (!product) {
       continue;
     }
@@ -476,99 +481,20 @@ async function updateCartSnapshot(transactionId, items, source = 'AI_MODEL', det
       },
     });
   }
-
-  const summary = normalized
-    .map((item) => `${toSingleLine(item.ai_label || item.name)} x${item.quantity}`)
-    .join(', ');
-
-  const previousByProductId = new Map(
-    previousItems.map((item) => [item.product_id, item])
-  );
-  const nextAiByProductId = new Map(
-    normalized.map((item) => [item.product_id, item])
-  );
-  const mergedByProductId = new Map(
-    previousItems.map((item) => [item.product_id, { ...item }])
-  );
-
-  const previousAiObservedByProductId = new Map(
-    previousItems.map((item) => {
-      const aiObserved = Number(item?.metadata?.ai_observed_quantity);
-      const fallback = Math.max(0, Number(item?.quantity || 0));
-      return [item.product_id, Number.isFinite(aiObserved) ? Math.max(0, aiObserved) : fallback];
-    })
-  );
-
-  const aiTrackedProductIds = new Set([
-    ...Array.from(previousAiObservedByProductId.keys()),
-    ...Array.from(nextAiByProductId.keys()),
-  ]);
-
-  const diffLines = [];
-
-  for (const productId of aiTrackedProductIds) {
-    const previousCartItem = previousByProductId.get(productId);
-    const nextAiItem = nextAiByProductId.get(productId);
-    const mergedItem = mergedByProductId.get(productId);
-
-    const beforeCartQuantity = Math.max(0, Number(previousCartItem?.quantity || 0));
-    const beforeAiQuantity = Math.max(0, Number(previousAiObservedByProductId.get(productId) || 0));
-    const afterAiQuantity = Math.max(0, Number(nextAiItem?.quantity || 0));
-    const aiDelta = afterAiQuantity - beforeAiQuantity;
-
-    const baseCartQuantity = Math.max(0, Number(mergedItem?.quantity || 0));
-    const afterCartQuantity = Math.max(0, baseCartQuantity + aiDelta);
-
-    const baseUnitPrice = toMoney(nextAiItem?.unit_price ?? mergedItem?.unit_price ?? 0);
-    const baseName = toSingleLine(nextAiItem?.name || mergedItem?.name || 'unknown');
-    const baseBrand = nextAiItem?.brand || mergedItem?.brand || null;
-    const baseAiLabel = nextAiItem?.ai_label || mergedItem?.ai_label || null;
-
-    if (afterCartQuantity <= 0) {
-      mergedByProductId.delete(productId);
-    } else {
-      mergedByProductId.set(productId, {
-        product_id: productId,
-        ai_label: baseAiLabel,
-        name: baseName,
-        brand: baseBrand,
-        quantity: afterCartQuantity,
-        unit_price: baseUnitPrice,
-        subtotal: toMoney(afterCartQuantity * baseUnitPrice),
-        metadata: {
-          ...(mergedItem?.metadata || {}),
-          source,
-          detected_at: detectedAt,
-          ai_observed_quantity: afterAiQuantity,
-        },
-      });
-    }
-
-    if (aiDelta === 0) {
-      continue;
-    }
-
-    diffLines.push(
-      `[${toIsoOrNow(detectedAt)}] AI_SNAPSHOT_DIFF source=${toSingleLine(source || 'AI_MODEL')} action=${actionFromDelta(aiDelta)} signal=${signFromDelta(aiDelta)} delta=${signedQuantity(aiDelta)} product_id=${productId} product_name=${baseName} ai_label=${toSingleLine(baseAiLabel || 'unknown')} ai_before=${beforeAiQuantity} ai_after=${afterAiQuantity} cart_before=${beforeCartQuantity} cart_after=${afterCartQuantity}`
-    );
-  }
-
-  const mergedItems = Array.from(mergedByProductId.values());
-
-  sessionCartCacheService.replaceSessionCart({
+  const cachedCart = sessionCartCacheService.replaceSessionCart({
     transaction_id: transaction.transaction_id,
     device_id: transaction.device_id,
     status_id: transaction.status_id,
-    items: mergedItems,
+    items: normalized,
     source,
   });
 
-  await appendTransactionDetails(prisma, transactionId, [
-    `[${toIsoOrNow(detectedAt)}] AI_CART_SNAPSHOT source=${toSingleLine(source || 'AI_MODEL')} items=${summary || 'none'} changed_items=${diffLines.length}`,
-    ...diffLines,
-  ]);
-
-  return getCart(transactionId);
+  return {
+    ...cachedCart,
+    status: {
+      status_id: transaction.status_id,
+    },
+  };
 }
 
 async function updateCartItemQuantity(transactionId, productId, delta) {
@@ -584,10 +510,6 @@ async function updateCartItemQuantity(transactionId, productId, delta) {
     throw new Error('Invalid quantity delta');
   }
 
-  const currentCart = sessionCartCacheService.getSessionCart(transaction.transaction_id);
-  const existingItem = currentCart?.cart?.find((item) => item.product_id === productId);
-  const beforeQuantity = Math.max(0, Number(existingItem?.quantity || 0));
-
   const updated = sessionCartCacheService.adjustItemQuantity({
     transaction_id: transaction.transaction_id,
     product_id: productId,
@@ -598,17 +520,12 @@ async function updateCartItemQuantity(transactionId, productId, delta) {
   if (!updated) {
     throw new Error('Cart item not found');
   }
-
-  const updatedItem = updated?.cart?.find((item) => item.product_id === productId);
-  const afterQuantity = Math.max(0, Number(updatedItem?.quantity || 0));
-  const button = numericDelta > 0 ? '+' : '-';
-  const quantityChange = Math.abs(numericDelta);
-
-  await appendTransactionDetails(prisma, transactionId, [
-    `[${new Date().toISOString()}] USER_BUTTON button=${button} product_id=${productId} product_name=${toSingleLine(existingItem?.name || updatedItem?.name || 'unknown')} quantity_change=${quantityChange} before=${beforeQuantity} after=${afterQuantity}`,
-  ]);
-
-  return getCart(transactionId);
+  return {
+    ...updated,
+    status: {
+      status_id: transaction.status_id,
+    },
+  };
 }
 
 async function getCurrentSession(deviceId, sessionInitToken) {

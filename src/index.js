@@ -19,6 +19,7 @@ const http = require('http');
 const app = require('./app');
 const { initializeSocketIO } = require('./config/socketIO');
 const { startSessionHeartbeatMonitor } = require('./services/sessionHeartbeatMonitorService');
+const { refreshProductCache } = require('./services/aiProductCacheService');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -40,4 +41,12 @@ server.listen(PORT, HOST, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Socket.io initialized and ready for connections`);
 });
+
+refreshProductCache()
+  .then((cachedCount) => {
+    console.log(`AI product cache loaded: ${cachedCount} items`);
+  })
+  .catch((error) => {
+    console.error('AI product cache preload failed:', error.message);
+  });
 
