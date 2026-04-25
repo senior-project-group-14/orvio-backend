@@ -16,7 +16,7 @@ http.createServer(requestHandler).listen(3000, () => {
   console.log("Server running at http://localhost:3000");
 });*/
 
-require('dotenv').config();
+// dotenv already loaded in index.js
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
