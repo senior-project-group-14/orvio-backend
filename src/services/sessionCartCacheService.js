@@ -1,4 +1,4 @@
-const CART_TTL_MS = 1000 * 60; // 1 minute
+const CART_TTL_MS = 1000 * 60 * 60; // 60 minutes
 const cartStore = new Map();
 
 function nowIso() {

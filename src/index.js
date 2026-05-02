@@ -28,6 +28,8 @@ const { initializeSocketIO } = require('./config/socketIO');
 const { startSessionHeartbeatMonitor } = require('./services/sessionHeartbeatMonitorService');
 const { refreshProductCache } = require('./services/aiProductCacheService');
 
+const AI_PRODUCT_CACHE_REFRESH_MS = 60 * 1000;
+
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -92,4 +94,14 @@ refreshProductCache()
   .catch((error) => {
     console.error('AI product cache preload failed:', error.message);
   });
+
+setInterval(() => {
+  refreshProductCache()
+    .then((cachedCount) => {
+      console.log(`AI product cache refreshed: ${cachedCount} items`);
+    })
+    .catch((error) => {
+      console.error('AI product cache refresh failed:', error.message);
+    });
+}, AI_PRODUCT_CACHE_REFRESH_MS);
 
