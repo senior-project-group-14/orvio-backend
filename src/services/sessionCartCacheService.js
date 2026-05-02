@@ -1,4 +1,4 @@
-const CART_TTL_MS = 1000 * 60 * 60; // 60 minutes
+const CART_TTL_MS = 1000 * 60; // 1 minute
 const cartStore = new Map();
 
 function nowIso() {
@@ -22,6 +22,43 @@ function normalizeQuantity(value) {
 function normalizeMoney(value) {
   const amount = toNumber(value, 0);
   return Number(amount.toFixed(2));
+}
+
+function normalizeAdjustments(adjustments) {
+  if (!adjustments || typeof adjustments !== 'object') {
+    return {};
+  }
+
+  return Object.entries(adjustments).reduce((acc, [productId, value]) => {
+    const normalized = Math.trunc(toNumber(value, 0));
+    if (normalized !== 0) {
+      acc[productId] = normalized;
+    }
+    return acc;
+  }, {});
+}
+
+function applyManualAdjustments(items, adjustments) {
+  const normalizedAdjustments = normalizeAdjustments(adjustments);
+  const adjustedItems = [];
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const normalizedItem = normalizeItem(item);
+    const adjustment = Math.trunc(toNumber(normalizedAdjustments[normalizedItem.product_id], 0));
+    const quantity = Math.max(0, normalizedItem.quantity + adjustment);
+
+    if (quantity <= 0) {
+      continue;
+    }
+
+    adjustedItems.push({
+      ...normalizedItem,
+      quantity,
+      subtotal: normalizeMoney(quantity * normalizedItem.unit_price),
+    });
+  }
+
+  return adjustedItems;
 }
 
 function normalizeItem(item) {
@@ -83,6 +120,7 @@ function initSessionCart({ transaction_id, device_id, status_id }) {
     total_price: 0,
     version: 1,
     last_update_source: 'SESSION_START',
+    manual_adjustments: {},
     updated_at: nowIso(),
     expires_at: nextExpiry(),
   };
@@ -115,13 +153,15 @@ function replaceSessionCart({ transaction_id, device_id, status_id, items, sourc
     total_price: 0,
     version: 0,
     last_update_source: null,
+    manual_adjustments: {},
     updated_at: nowIso(),
     expires_at: nextExpiry(),
   };
 
   entry.device_id = device_id;
   entry.status_id = status_id;
-  entry.cart = Array.isArray(items) ? items : [];
+  entry.manual_adjustments = normalizeAdjustments(entry.manual_adjustments);
+  entry.cart = applyManualAdjustments(items, entry.manual_adjustments);
   recompute(entry);
   touch(entry, source || 'SYSTEM_SYNC');
 
@@ -201,6 +241,15 @@ function adjustItemQuantity({ transaction_id, product_id, delta, source = 'USER_
 
   const current = normalizeItem(entry.cart[itemIndex]);
   const nextQuantity = Math.max(0, current.quantity + numericDelta);
+  const manualAdjustments = normalizeAdjustments(entry.manual_adjustments);
+  const nextAdjustment = Math.trunc(toNumber(manualAdjustments[product_id], 0)) + numericDelta;
+
+  if (nextAdjustment === 0) {
+    delete manualAdjustments[product_id];
+  } else {
+    manualAdjustments[product_id] = nextAdjustment;
+  }
+  entry.manual_adjustments = manualAdjustments;
 
   if (nextQuantity === 0) {
     entry.cart.splice(itemIndex, 1);
